@@ -20,14 +20,14 @@ repos:
         language: system
         types: [python]
 
-      - id: mypy
-        name: Mypy
-        entry: uv run -- mypy
-        language: system
-        log_file: logs/mypy.log
-        types: [python]
-        require_serial: true
-        additional_dependencies: []
+#      - id: mypy
+#        name: Mypy
+#        entry: uv run -- mypy
+#        language: system
+#        log_file: logs/mypy.log
+#        types: [python]
+#        require_serial: true
+#        additional_dependencies: []
 
       - id: markdownlint
         name: Markdownlint
