@@ -5,7 +5,7 @@ import shutil
 import signal
 import sys
 import traceback
-import typing
+import types
 import yaml
 
 try:
@@ -43,7 +43,7 @@ def sub_main(args: argparse.Namespace) -> None:
     print("The program has successfully completed.\n")
 
 
-def main():
+def main() -> None:
     """PLaceholder"""
     # Restore default signal handler for SIGINT (Ctrl-C)
     signal.signal(signal.SIGINT, signal.SIG_DFL)  # KeyboardInterrupt: Ctrl-C
@@ -63,7 +63,7 @@ def main():
         exit_with_error(e, traceback)
 
 
-def exit_with_error(e, tb_module):
+def exit_with_error(e: Exception, tb_module: types.ModuleType) -> None:
     """Handles exceptions by printing error details and exiting the program.
 
     :param e:
