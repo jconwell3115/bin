@@ -185,7 +185,7 @@ dnf install -y \
     wget \
     curl \
     vim \
-    htop \
+    btop \
     tmux \
     unzip \
     tar \
