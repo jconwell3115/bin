@@ -46,7 +46,18 @@ dnf install -y epel-release
 dnf config-manager --set-enabled crb 2>/dev/null || dnf config-manager --set-enabled powertools 2>/dev/null || true
 
 # ============================================
-# 3. BASIC SYSTEM HARDENING
+# 3. INSTALL FLATPAK AND FLATHUB REPOSITORY
+# ============================================
+echo_info "Installing Flatpak..."
+dnf install -y flatpak
+
+echo_info "Adding Flathub repository..."
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+echo_info "Flatpak and Flathub repository installed successfully"
+
+# ============================================
+# 4. BASIC SYSTEM HARDENING
 # ============================================
 echo_info "Applying basic system hardening..."
 
@@ -146,7 +157,7 @@ EOF
 sysctl -p
 
 # ============================================
-# 4. SETUP MICROSOFT GPG KEY AND VSCODE REPO
+# 5. SETUP MICROSOFT GPG KEY AND VSCODE REPO
 # ============================================
 echo_info "Setting up Microsoft GPG key..."
 rpm --import https://packages.microsoft.com/keys/microsoft.asc
@@ -162,7 +173,7 @@ gpgkey=https://packages.microsoft.com/keys/microsoft.asc
 EOF
 
 # ============================================
-# 5. INSTALL VSCODE
+# 6. INSTALL VSCODE
 # ============================================
 echo_info "Installing Visual Studio Code..."
 dnf check-update
@@ -177,7 +188,7 @@ else
 fi
 
 # ============================================
-# 6. INSTALL USEFUL DEVELOPMENT TOOLS
+# 7. INSTALL USEFUL DEVELOPMENT TOOLS
 # ============================================
 echo_info "Installing useful development tools..."
 dnf install -y \
@@ -185,14 +196,14 @@ dnf install -y \
     wget \
     curl \
     vim \
-    btop \
+    htop \
     tmux \
     unzip \
     tar \
     bzip2
 
 # ============================================
-# 7. INITIALIZE AIDE (File Integrity Checker)
+# 8. INITIALIZE AIDE (File Integrity Checker)
 # ============================================
 echo_info "Initializing AIDE database (this may take a few minutes)..."
 aide --init
@@ -207,6 +218,7 @@ System Hardening Completed: $(date)
 ===========================================
 - System updated
 - EPEL repository installed
+- Flatpak and Flathub repository installed
 - Firewall enabled and configured
 - SELinux set to enforcing
 - Fail2ban installed and configured
@@ -224,6 +236,7 @@ Next Recommended Steps:
 5. Run AIDE checks regularly: aide --check
 6. Set up regular backups
 7. Configure log monitoring
+8. Install Flatpak apps: flatpak install flathub <app-id>
 EOF
 
 echo_info "============================================"
@@ -231,6 +244,7 @@ echo_info "Setup completed successfully!"
 echo_info "============================================"
 echo_info "Installed packages:"
 echo_info "  - EPEL repository"
+echo_info "  - Flatpak with Flathub repository"
 echo_info "  - Visual Studio Code ($(rpm -q code))"
 echo_info "  - Security tools (firewalld, fail2ban, aide)"
 echo_info ""
@@ -239,9 +253,11 @@ echo_warn "A reboot is recommended to apply all kernel parameters"
 echo_info "Setup log saved to: /root/security-setup-$(date +%Y%m%d-%H%M%S).log"
 echo_info ""
 echo_info "To start VSCode, run: code"
+echo_info "To search Flatpak apps, run: flatpak search <app-name>"
+echo_info "To install Flatpak apps, run: flatpak install flathub <app-id>"
 
 # Ask for reboot
-read -p "Do you want to reboot now? (y/N):" -n 1 -r
+read -p "Do you want to reboot now? (y/N): " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo_info "Rebooting system..."
