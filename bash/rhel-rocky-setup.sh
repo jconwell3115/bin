@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# RHEL 10 / Rocky Linux Setup Script
-# This script hardens the system, sets up EPEL, and installs VSCode
+# RHEL / Fedora Linux Setup Script
+# This script hardens the system, sets up repositories, and installs VSCode
 
 set -e  # Exit on error
 
@@ -9,6 +9,7 @@ set -e  # Exit on error
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo_info() {
@@ -23,13 +24,68 @@ echo_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+echo_prompt() {
+    echo -e "${BLUE}[INPUT]${NC} $1"
+}
+
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
    echo_error "This script must be run as root"
    exit 1
 fi
 
-echo_info "Starting RHEL/Rocky Linux setup and hardening..."
+# ============================================
+# DISTRO DETECTION
+# ============================================
+echo_info "Detecting Linux distribution..."
+
+DISTRO=""
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    if [[ "$ID" == "fedora" ]]; then
+        DISTRO="fedora"
+        echo_info "Detected: Fedora $VERSION_ID"
+    elif [[ "$ID" == "rhel" ]]; then
+        DISTRO="rhel"
+        echo_info "Detected: Red Hat Enterprise Linux $VERSION_ID"
+    else
+        echo_warn "Detected: $PRETTY_NAME (may not be fully supported)"
+    fi
+fi
+
+# Prompt user to confirm or manually select
+echo ""
+echo_prompt "Select your distribution:"
+echo "1) Fedora"
+echo "2) RHEL (Red Hat Enterprise Linux)"
+echo ""
+read -p "Enter choice [1-2] (detected: $DISTRO): " choice
+
+case $choice in
+    1)
+        DISTRO="fedora"
+        echo_info "Selected: Fedora"
+        ;; 
+    2)
+        DISTRO="rhel"
+        echo_info "Selected: RHEL"
+        ;;  
+    "")
+        if [ -z "$DISTRO" ]; then
+            echo_error "Could not detect distribution. Please run again and select manually."
+            exit 1
+        fi
+        echo_info "Using detected distribution: $DISTRO"
+        ;;  
+    *)
+        echo_error "Invalid choice. Exiting."
+        exit 1
+        ;;
+esac
+
+echo ""
+echo_info "Starting $DISTRO setup and hardening..."
+echo ""
 
 # ============================================
 # 1. SYSTEM UPDATES
@@ -39,11 +95,26 @@ dnf update -y
 dnf upgrade -y
 
 # ============================================
-# 2. INSTALL EPEL REPOSITORY
+# 2. INSTALL DISTRIBUTION-SPECIFIC REPOS
 # ============================================
-echo_info "Installing EPEL repository..."
+if [ "$DISTRO" == "rhel" ]; then
+    echo_info "Installing EPEL repository for RHEL..."
 dnf install -y epel-release
-dnf config-manager --set-enabled crb 2>/dev/null || dnf config-manager --set-enabled powertools 2>/dev/null || true
+    
+echo_info "Enabling CRB (CodeReady Builder) repository..."
+dnf config-manager --set-enabled crb 2>/dev/null || \
+dnf config-manager --set-enabled powertools 2>/dev/null || \
+echo_warn "Could not enable CRB/PowerTools (may not be available on this RHEL version)"
+    
+elif [ "$DISTRO" == "fedora" ]; then
+    echo_info "Fedora detected - repositories already available"
+    
+echo_info "Enabling RPM Fusion repositories (optional but recommended)..."
+dnf install -y \
+    https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
+    https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm \
+    2>/dev/null || echo_warn "RPM Fusion installation failed or already installed"
+fi
 
 # ============================================
 # 3. INSTALL FLATPAK AND FLATHUB REPOSITORY
@@ -62,6 +133,7 @@ echo_info "Flatpak and Flathub repository installed successfully"
 echo_info "Applying basic system hardening..."
 
 # Install security tools
+echo_info "Installing security tools..."
 dnf install -y fail2ban aide firewalld
 
 # Configure and enable firewall
@@ -118,18 +190,18 @@ systemctl enable --now dnf-automatic.timer
 
 # Set secure umask
 echo_info "Setting secure umask..."
-echo "umask 027" >> /etc/profile
+grep -q "umask 027" /etc/profile || echo "umask 027" >> /etc/profile
 
 # Disable core dumps
 echo_info "Disabling core dumps..."
-cat >> /etc/security/limits.conf <<EOF
+grep -q "* hard core 0" /etc/security/limits.conf || cat >> /etc/security/limits.conf <<EOF
 * hard core 0
 EOF
-echo "fs.suid_dumpable = 0" >> /etc/sysctl.conf
+grep -q "fs.suid_dumpable" /etc/sysctl.conf || echo "fs.suid_dumpable = 0" >> /etc/sysctl.conf
 
 # Kernel hardening parameters
 echo_info "Applying kernel hardening parameters..."
-cat >> /etc/sysctl.conf <<EOF
+cat >> /etc/sysctl.d/99-security-hardening.conf <<EOF
 # Kernel hardening
 kernel.dmesg_restrict = 1
 kernel.kptr_restrict = 2
@@ -154,7 +226,7 @@ net.ipv4.conf.all.rp_filter = 1
 net.ipv4.conf.default.rp_filter = 1
 net.ipv4.tcp_syncookies = 1
 EOF
-sysctl -p
+sysctl -p /etc/sysctl.d/99-security-hardening.conf
 
 # ============================================
 # 5. SETUP MICROSOFT GPG KEY AND VSCODE REPO
@@ -176,7 +248,7 @@ EOF
 # 6. INSTALL VSCODE
 # ============================================
 echo_info "Installing Visual Studio Code..."
-dnf check-update
+dnf check-update || true
 dnf install -y code
 
 # Verify installation
@@ -200,7 +272,8 @@ dnf install -y \
     tmux \
     unzip \
     tar \
-    bzip2
+    bzip2 \
+    neofetch
 
 # ============================================
 # 8. INITIALIZE AIDE (File Integrity Checker)
@@ -212,12 +285,16 @@ mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
 # ============================================
 # FINAL STEPS
 # ============================================
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+LOG_FILE="/root/security-setup-$TIMESTAMP.log"
+
 echo_info "Creating security audit log..."
-cat > /root/security-setup-$(date +%Y%m%d-%H%M%S).log <<EOF
+cat > "$LOG_FILE" <<EOF
 System Hardening Completed: $(date)
+Distribution: $DISTRO
 ===========================================
 - System updated
-- EPEL repository installed
+$([ "$DISTRO" == "rhel" ] && echo "- EPEL repository installed" || echo "- RPM Fusion repositories installed")
 - Flatpak and Flathub repository installed
 - Firewall enabled and configured
 - SELinux set to enforcing
@@ -239,22 +316,31 @@ Next Recommended Steps:
 8. Install Flatpak apps: flatpak install flathub <app-id>
 EOF
 
-echo_info "============================================"
+echo ""
+echo_info "============================================="
 echo_info "Setup completed successfully!"
-echo_info "============================================"
+echo_info "============================================="
+echo_info "Distribution: $DISTRO"
 echo_info "Installed packages:"
-echo_info "  - EPEL repository"
+if [ "$DISTRO" == "rhel" ]; then
+    echo_info "  - EPEL repository"
+else
+    echo_info "  - RPM Fusion repositories"
+fi
 echo_info "  - Flatpak with Flathub repository"
 echo_info "  - Visual Studio Code ($(rpm -q code))"
 echo_info "  - Security tools (firewalld, fail2ban, aide)"
 echo_info ""
 echo_warn "IMPORTANT: Review the security settings and customize as needed"
 echo_warn "A reboot is recommended to apply all kernel parameters"
-echo_info "Setup log saved to: /root/security-setup-$(date +%Y%m%d-%H%M%S).log"
+echo_info "Setup log saved to: $LOG_FILE"
 echo_info ""
-echo_info "To start VSCode, run: code"
-echo_info "To search Flatpak apps, run: flatpak search <app-name>"
-echo_info "To install Flatpak apps, run: flatpak install flathub <app-id>"
+echo_info "Useful commands:"
+echo_info "  - Start VSCode: code"
+echo_info "  - Search Flatpak apps: flatpak search <app-name>"
+echo_info "  - Install Flatpak apps: flatpak install flathub <app-id>"
+echo_info "  - Check system info: neofetch"
+echo ""
 
 # Ask for reboot
 read -p "Do you want to reboot now? (y/N): " -n 1 -r
