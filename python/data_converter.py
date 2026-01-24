@@ -63,39 +63,12 @@ xmltodict.expat.ExpatError
 
 import argparse
 import json
-from collections import OrderedDict
-from pathlib import Path
 import signal
 import sys
 import traceback
+from collections import OrderedDict
+from pathlib import Path
 from typing import Any
-
-
-MODE_SEPARATOR = "2"
-EXPECTED_PARTS = 2
-
-
-def clean_data_for_yaml(data: Any) -> Any:
-    """Recursively clean data for YAML output by converting OrderedDict to dict and cleaning strings.
-
-    :param data: The data to clean
-
-    :returns: Cleaned data suitable for YAML serialization
-    """
-    if isinstance(data, OrderedDict):
-        return {key: clean_data_for_yaml(value) for key, value in data.items()}
-    elif isinstance(data, dict):
-        return {key: clean_data_for_yaml(value) for key, value in data.items()}
-    elif isinstance(data, list):
-        return [clean_data_for_yaml(item) for item in data]
-    elif isinstance(data, str):
-        # Strip trailing newlines and normalize whitespace in multiline strings
-        lines = data.rstrip("\n").split("\n")
-        cleaned_lines = [line.rstrip() for line in lines]
-        return "\n".join(cleaned_lines).rstrip()
-    else:
-        return data
-
 
 try:
     # Try to import non-standard libraries, send a list of libraries if any aren't
@@ -118,6 +91,28 @@ except ImportError as import_err:
     for mod in mod_list:
         print(mod)
     sys.exit()
+
+MODE_SEPARATOR = "2"
+EXPECTED_PARTS = 2
+
+
+def clean_data_for_yaml(data: Any) -> Any:
+    """Recursively clean data for YAML output by converting OrderedDict to dict and cleaning strings.
+
+    :param data: The data to clean
+
+    :returns: Cleaned data suitable for YAML serialization
+    """
+    if isinstance(data, (OrderedDict, dict)):
+        return {key: clean_data_for_yaml(value) for key, value in data.items()}
+    if isinstance(data, list):
+        return [clean_data_for_yaml(item) for item in data]
+    if isinstance(data, str):
+        # Strip trailing newlines and normalize whitespace in multiline strings
+        lines = data.rstrip("\n").split("\n")
+        cleaned_lines = [line.rstrip() for line in lines]
+        return "\n".join(cleaned_lines).rstrip()
+    return data
 
 
 def parse_mode(mode: str) -> tuple[str, str]:

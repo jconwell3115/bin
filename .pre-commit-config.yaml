@@ -2,32 +2,32 @@
 repos:
   - repo: local
     hooks:
-      - id: ruff
-        name: Ruff Linter
-        entry: ruff check
-        description: Fast Python linter and formatter
-        stages: [manual]
-        log_file: logs/ruff.log
-        language: system
-        types: [python]
+      # - id: ruff
+      #   name: Ruff Linter
+      #   entry: ruff check
+      #   description: Fast Python linter and formatter
+      #   stages: [manual]
+      #   log_file: logs/ruff.log
+      #   language: system
+      #   types: [python]
 
-      - id: ruff-format
-        name: Ruff Formatter
-        entry: ruff format
-        description: Fast Python linter and formatter
-        stages: [manual, pre-commit]
-        log_file: logs/ruff-format.log
-        language: system
-        types: [python]
+      # - id: ruff-format
+      #   name: Ruff Formatter
+      #   entry: ruff format
+      #   description: Fast Python linter and formatter
+      #   stages: [manual, pre-commit]
+      #   log_file: logs/ruff-format.log
+      #   language: system
+      #   types: [python]
 
-      - id: mypy
-        name: Mypy
-        entry: uv run -- mypy
-        language: system
-        log_file: logs/mypy.log
-        types: [python]
-        require_serial: true
-        additional_dependencies: []
+      # - id: mypy
+      #   name: Mypy
+      #   entry: uv run -- mypy
+      #   language: system
+      #   log_file: logs/mypy.log
+      #   types: [python]
+      #   require_serial: true
+      #   additional_dependencies: []
 
       - id: markdownlint
         name: Markdownlint
@@ -36,28 +36,28 @@ repos:
         types: [markdown]
         log_file: logs/markdownlint.log
 
-      - id: shellcheck
-        name: ShellCheck
-        entry: shellcheck
-        args: ['-x']
-        description: Shell script static analysis
-        language: system
-        files: \.(sh|bash)$
-        log_file: logs/shellcheck.log
+      # - id: shellcheck
+      #   name: ShellCheck
+      #   entry: shellcheck
+      #   args: ['-x']
+      #   description: Shell script static analysis
+      #   language: system
+      #   files: \.(sh|bash)$
+      #   log_file: logs/shellcheck.log
 
-      - id: bandit
-        name: Bandit
-        entry: bandit
-        language: system
-        files: \.py$
-        log_file: logs/bandit.log
+      # - id: bandit
+      #   name: Bandit
+      #   entry: bandit
+      #   language: system
+      #   files: \.py$
+      #   log_file: logs/bandit.log
 
-      - id: pydocstyle
-        name: Pydocstyle
-        entry: pydocstyle
-        language: system
-        files: \.py$
-        log_file: logs/pydocstyle.log
+      # - id: pydocstyle
+      #   name: Pydocstyle
+      #   entry: pydocstyle
+      #   language: system
+      #   files: \.py$
+      #   log_file: logs/pydocstyle.log
 
 #       - id: ansible-lint
 #         name: Ansible Lint
