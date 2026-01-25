@@ -197,29 +197,35 @@ backup_podman_context() {
       # Tar the volume data (preserve permissions, xattrs)
       if [[ "$context" == "rootful" ]]; then
         # For rootful, use sudo tar
-        sudo tar -I "$TAR_COMPRESS" -cf "$base_dir/volumes/${vol}.tar.gz" \
+        local error_output
+        error_output=$(sudo tar -I "$TAR_COMPRESS" -cf "$base_dir/volumes/${vol}.tar.gz" \
           -C "$(dirname "$mountpoint")" \
           "$(basename "$mountpoint")" \
-          2>/dev/null || {
-            echo "      WARNING: Could not backup $vol directly. Trying with podman run..."
+          2>&1) || {
+            echo "      WARNING: Direct backup of $vol failed:"
+            echo "      Reason: $error_output"
+            echo "      Trying with podman run container fallback..."
             $podman_cmd run --rm \
               -v "$vol:/volume:ro" \
               -v "$base_dir/volumes:/backup:rw" \
               alpine:latest \
-              tar -I "$TAR_COMPRESS" -cf "/backup/${vol}.tar.gz" -C /volume .
+              tar -czf "/backup/${vol}.tar.gz" -C /volume .
           }
       else
         # For rootless, regular tar should work
-        tar -I "$TAR_COMPRESS" -cf "$base_dir/volumes/${vol}.tar.gz" \
+        local error_output
+        error_output=$(tar -I "$TAR_COMPRESS" -cf "$base_dir/volumes/${vol}.tar.gz" \
           -C "$(dirname "$mountpoint")" \
           "$(basename "$mountpoint")" \
-          2>/dev/null || {
-            echo "      WARNING: Could not backup $vol directly. Trying with podman run..."
+          2>&1) || {
+            echo "      WARNING: Direct backup of $vol failed:"
+            echo "      Reason: $error_output"
+            echo "      Trying with podman run container fallback..."
             $podman_cmd run --rm \
               -v "$vol:/volume:ro" \
               -v "$base_dir/volumes:/backup:rw" \
               alpine:latest \
-              tar -I "$TAR_COMPRESS" -cf "/backup/${vol}.tar.gz" -C /volume .
+              tar -czf "/backup/${vol}.tar.gz" -C /volume .
           }
       fi
       
