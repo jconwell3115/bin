@@ -212,9 +212,9 @@ backup_podman_context() {
               tar -czf "/backup/${vol}.tar.gz" -C /volume .
           }
       else
-        # For rootless, regular tar should work
+        # For rootless, use podman unshare to access volume in user namespace
         local error_output
-        error_output=$(tar -I "$TAR_COMPRESS" -cf "$base_dir/volumes/${vol}.tar.gz" \
+        error_output=$(podman unshare tar -I "$TAR_COMPRESS" -cf "$base_dir/volumes/${vol}.tar.gz" \
           -C "$(dirname "$mountpoint")" \
           "$(basename "$mountpoint")" \
           2>&1) || {
