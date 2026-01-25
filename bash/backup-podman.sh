@@ -44,7 +44,7 @@ EOF
 
 # === Configuration ===
 BACKUP_MODE="${BACKUP_MODE:-full}"
-BACKUP_ROOT="${BACKUP_ROOT:-$HOME/containers/podman-backups}"
+BACKUP_ROOT="${BACKUP_ROOT:-$HOME/podman-backups}"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 SAVE_IMAGES="no"
 BACKUP_VOLUMES="yes"
