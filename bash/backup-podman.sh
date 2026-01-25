@@ -2,16 +2,119 @@
 # Comprehensive Podman backup: containers, volumes, quadlets, configs
 set -euo pipefail
 
+# === Usage ===
+usage() {
+  cat <<EOF
+Usage: $0 [OPTIONS]
+
+Podman backup script with multiple modes for different backup strategies.
+
+OPTIONS:
+  -m, --mode MODE       Backup mode: daily, weekly, full (default: full)
+                        daily  = metadata only (containers, networks, configs)
+                        weekly = full backup including volumes
+                        full   = everything including images
+  -d, --destination DIR Backup root directory (default: \$HOME/containers/podman-backups)
+  -r, --rootful         Include rootful containers (default: yes)
+  --no-rootful          Skip rootful containers
+  -h, --help            Show this help message
+
+MODES:
+  daily   - Fast backup of configs, container metadata, networks (~few MB)
+            Intended for daily automated backups
+  weekly  - Full backup including all volume data (~GB)
+            Intended for weekly automated backups
+  full    - Complete backup including container images
+            Intended for manual/pre-migration backups
+
+EXAMPLES:
+  $0 --mode daily                    # Quick metadata backup
+  $0 --mode weekly                   # Full backup with volumes
+  $0 --mode full                     # Everything including images
+  $0 -m weekly -d /mnt/nas/backups   # Weekly backup to NAS
+
+SYSTEMD TIMERS:
+  Use the companion timer files:
+    - podman-backup-daily.timer   (runs daily)
+    - podman-backup-weekly.timer  (runs weekly)
+
+EOF
+  exit 0
+}
+
 # === Configuration ===
+BACKUP_MODE="${BACKUP_MODE:-full}"
 BACKUP_ROOT="${BACKUP_ROOT:-$HOME/containers/podman-backups}"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-BACKUP_DIR="$BACKUP_ROOT/backup-$TIMESTAMP"
-SAVE_IMAGES="${SAVE_IMAGES:-no}"  # Set to "yes" to export image tarballs (can be large)
+SAVE_IMAGES="no"
+BACKUP_VOLUMES="yes"
 BACKUP_ROOTFUL="${BACKUP_ROOTFUL:-yes}"  # Set to "no" to skip rootful containers
+
+# === Parse Arguments ===
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -m|--mode)
+      BACKUP_MODE="$2"
+      shift 2
+      ;;
+    -d|--destination)
+      BACKUP_ROOT="$2"
+      shift 2
+      ;;
+    -r|--rootful)
+      BACKUP_ROOTFUL="yes"
+      shift
+      ;;
+    --no-rootful)
+      BACKUP_ROOTFUL="no"
+      shift
+      ;;
+    -h|--help)
+      usage
+      ;;
+    *)
+      echo "ERROR: Unknown option: $1"
+      echo "Use -h or --help for usage information"
+      exit 1
+      ;;
+  esac
+done
+
+# === Configure based on mode ===
+case "$BACKUP_MODE" in
+  daily)
+    BACKUP_DIR="$BACKUP_ROOT/daily-$TIMESTAMP"
+    BACKUP_VOLUMES="no"
+    SAVE_IMAGES="no"
+    ;;
+  weekly)
+    BACKUP_DIR="$BACKUP_ROOT/weekly-$TIMESTAMP"
+    BACKUP_VOLUMES="yes"
+    SAVE_IMAGES="no"
+    ;;
+  full)
+    BACKUP_DIR="$BACKUP_ROOT/full-$TIMESTAMP"
+    BACKUP_VOLUMES="yes"
+    SAVE_IMAGES="yes"
+    ;;
+  *)
+    echo "ERROR: Invalid mode '$BACKUP_MODE'. Use: daily, weekly, or full"
+    exit 1
+    ;;
+esac
 
 # === Checks ===
 command -v podman >/dev/null 2>&1 || { echo "ERROR: podman not found"; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "ERROR: jq not found"; exit 1; }
+
+# Check for pigz (parallel gzip) and fall back to gzip if not available
+if command -v pigz >/dev/null 2>&1; then
+  TAR_COMPRESS="pigz"
+  echo "Using pigz for parallel compression"
+else
+  TAR_COMPRESS="gzip"
+  echo "Using gzip for compression (install pigz for faster compression)"
+fi
 
 # Check if we can backup rootful containers
 CAN_BACKUP_ROOTFUL=false
@@ -22,9 +125,12 @@ elif [[ "$BACKUP_ROOTFUL" == "yes" ]] && sudo -v &>/dev/null && sudo podman vers
 fi
 
 echo "=== Podman Backup ==="
+echo "Mode: $BACKUP_MODE"
 echo "Backup directory: $BACKUP_DIR"
 echo "Rootless backup: YES"
 echo "Rootful backup: $([[ "$CAN_BACKUP_ROOTFUL" == "true" ]] && echo "YES" || echo "NO (requires sudo)")"
+echo "Include volumes: $BACKUP_VOLUMES"
+echo "Include images: $SAVE_IMAGES"
 mkdir -p "$BACKUP_DIR"
 
 # === Backup Function ===
@@ -69,6 +175,13 @@ backup_podman_context() {
   fi
   
   # 3. Volumes (data)
+  if [[ "$BACKUP_VOLUMES" == "no" ]]; then
+    echo "    Skipping volume data (mode: $BACKUP_MODE)"
+    # Save volume list for reference
+    $podman_cmd volume ls --format json > "$base_dir/volumes/volumes-list.json"
+    return 0
+  fi
+  
   echo "  [3/5] Backing up volumes..."
   mkdir -p "$base_dir/volumes"
   
@@ -84,7 +197,7 @@ backup_podman_context() {
       # Tar the volume data (preserve permissions, xattrs)
       if [[ "$context" == "rootful" ]]; then
         # For rootful, use sudo tar
-        sudo tar -czf "$base_dir/volumes/${vol}.tar.gz" \
+        sudo tar -I "$TAR_COMPRESS" -cf "$base_dir/volumes/${vol}.tar.gz" \
           -C "$(dirname "$mountpoint")" \
           "$(basename "$mountpoint")" \
           2>/dev/null || {
@@ -93,11 +206,11 @@ backup_podman_context() {
               -v "$vol:/volume:ro" \
               -v "$base_dir/volumes:/backup:rw" \
               alpine:latest \
-              tar -czf "/backup/${vol}.tar.gz" -C /volume .
+              tar -I "$TAR_COMPRESS" -cf "/backup/${vol}.tar.gz" -C /volume .
           }
       else
         # For rootless, regular tar should work
-        tar -czf "$base_dir/volumes/${vol}.tar.gz" \
+        tar -I "$TAR_COMPRESS" -cf "$base_dir/volumes/${vol}.tar.gz" \
           -C "$(dirname "$mountpoint")" \
           "$(basename "$mountpoint")" \
           2>/dev/null || {
@@ -106,7 +219,7 @@ backup_podman_context() {
               -v "$vol:/volume:ro" \
               -v "$base_dir/volumes:/backup:rw" \
               alpine:latest \
-              tar -czf "/backup/${vol}.tar.gz" -C /volume .
+              tar -I "$TAR_COMPRESS" -cf "/backup/${vol}.tar.gz" -C /volume .
           }
       fi
       
@@ -235,9 +348,15 @@ rootless_images=$(podman images -q 2>/dev/null | wc -l)
 if [[ "$CAN_BACKUP_ROOTFUL" == "true" ]]; then
   rootful_containers=$(sudo podman ps -aq 2>/dev/null | wc -l)
   rootful_volumes=$(sudo podman volume ls -q 2>/dev/null | wc -l)
-  rootful_images=$(sudo podman images -q 2>/dev/null | wc -l)
-else
-  rootful_containers=0
+Backup Mode: $BACKUP_MODE
+Created: $(date -Iseconds)
+Hostname: $(hostname)
+Podman Version: $(podman --version)
+
+Backup Configuration:
+- Include volumes: $BACKUP_VOLUMES
+- Include images: $SAVE_IMAGES
+- Rootful containers: $([[ "$CAN_BACKUP_ROOTFUL" == "true" ]] && echo "YES" || echo "NO"
   rootful_volumes=0
   rootful_images=0
 fi

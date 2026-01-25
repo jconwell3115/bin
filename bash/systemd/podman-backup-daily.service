@@ -1,0 +1,17 @@
+[Unit]
+Description=Podman Daily Backup (metadata only)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/rhlabs/my_work_tools/bin/bash/backup-podman.sh --mode daily
+User=%u
+StandardOutput=journal
+StandardError=journal
+
+# Restart on failure
+Restart=on-failure
+RestartSec=5m
+
+[Install]
+WantedBy=multi-user.target

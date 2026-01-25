@@ -1,0 +1,20 @@
+[Unit]
+Description=Podman Weekly Backup (full with volumes)
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/rhlabs/my_work_tools/bin/bash/backup-podman.sh --mode weekly
+User=%u
+StandardOutput=journal
+StandardError=journal
+
+# Longer timeout for large volume backups
+TimeoutStartSec=4h
+
+# Restart on failure
+Restart=on-failure
+RestartSec=30m
+
+[Install]
+WantedBy=multi-user.target

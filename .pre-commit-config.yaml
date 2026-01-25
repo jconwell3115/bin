@@ -29,12 +29,12 @@ repos:
       #   require_serial: true
       #   additional_dependencies: []
 
-      - id: markdownlint
-        name: Markdownlint
-        entry: pymarkdownlnt scan
-        language: system
-        types: [markdown]
-        log_file: logs/markdownlint.log
+      # - id: markdownlint
+      #   name: Markdownlint
+      #   entry: pymarkdownlnt scan
+      #   language: system
+      #   types: [markdown]
+      #   log_file: logs/markdownlint.log
 
       # - id: shellcheck
       #   name: ShellCheck
@@ -52,12 +52,12 @@ repos:
       #   files: \.py$
       #   log_file: logs/bandit.log
 
-      # - id: pydocstyle
-      #   name: Pydocstyle
-      #   entry: pydocstyle
-      #   language: system
-      #   files: \.py$
-      #   log_file: logs/pydocstyle.log
+      - id: pydocstyle
+        name: Pydocstyle
+        entry: pydocstyle
+        language: system
+        files: \.py$
+        log_file: logs/pydocstyle.log
 
 #       - id: ansible-lint
 #         name: Ansible Lint

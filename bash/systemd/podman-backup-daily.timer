@@ -1,0 +1,15 @@
+[Unit]
+Description=Run Podman daily backup at 2 AM
+Requires=podman-backup-daily.service
+
+[Timer]
+# Run daily at 2:00 AM
+OnCalendar=daily
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+
+# Add randomized delay to avoid exact concurrent runs
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target
